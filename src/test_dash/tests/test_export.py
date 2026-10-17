@@ -8,7 +8,6 @@ fast and hermetic.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from collections.abc import Iterable, Iterator
@@ -178,12 +177,35 @@ def test_find_chromium_browser_honours_the_env_override(
 def test_find_chromium_browser_returns_none_when_nothing_is_installed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """No Chromium-family browser on the machine -> None, not an error."""
+    import test_dash.browsers.chrome as chrome_module
+
     monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
-    monkeypatch.setattr(shutil, "which", lambda name: None)
-    for var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "LOCALAPPDATA"):
-        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(chrome_module, "_choreographer_browser", lambda: None)
 
     assert find_chromium_browser() is None
+
+
+def test_discovery_never_uses_a_downloaded_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only a browser the user already had is ever attached to.
+
+    choreographer can find a Chrome it downloaded itself; ``skip_local=True``
+    is what keeps the exporter from doing that.
+    """
+    chromium = pytest.importorskip("choreographer.browsers.chromium")
+    seen: dict[str, bool] = {}
+
+    def _fake_find_browser(**kwargs: object) -> None:
+        seen["skip_local"] = bool(kwargs.get("skip_local"))
+        return None
+
+    monkeypatch.setattr(chromium.Chromium, "find_browser", _fake_find_browser)
+    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
+
+    assert find_chromium_browser() is None
+    assert seen["skip_local"] is True
 
 
 def test_find_chromium_browser_locates_local_browser() -> None:

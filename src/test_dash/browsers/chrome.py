@@ -11,7 +11,6 @@ from __future__ import annotations
 import importlib.metadata
 import importlib.util
 import os
-import shutil
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
@@ -29,18 +28,19 @@ from .base import (
 if TYPE_CHECKING:
     import plotly.graph_objects as go
 
-#: Chromium-family executables searched on ``PATH``, most preferred first.
-_CHROMIUM_NAMES = ("chrome", "chromium", "msedge", "brave")
-
-
 def find_chromium_browser(explicit: StrPath | None = None) -> Path | None:
     """Locate a Chromium-family browser for the Chrome/Kaleido backend.
 
-    Order: explicit argument, ``TEST_DASH_CHROME`` env var, ``PATH`` (Chrome,
-    Chromium, Edge, then Brave), and finally the usual Windows install
-    locations.  Returns ``None`` when nothing is installed; an explicit path or
-    env override that does not exist raises :class:`ChromeUnavailable` instead,
-    so a typo is never silently ignored.
+    Order: explicit argument, ``TEST_DASH_CHROME`` env var, then Kaleido's own
+    browser layer (``choreographer``).  That layer already knows every
+    Chromium-family browser we would accept (Chrome, Chromium, Edge, Brave,
+    Vivaldi) and searches ``BROWSER_PATH``, the ``PATH``, the Windows registry
+    and the usual install locations, so the list lives with Kaleido instead of
+    with us.
+
+    Returns ``None`` when nothing is installed; an explicit path or env override
+    that does not exist raises :class:`ChromeUnavailable` instead, so a typo is
+    never silently ignored.
     """
     if explicit is not None:
         candidate = Path(explicit)
@@ -55,34 +55,24 @@ def find_chromium_browser(explicit: StrPath | None = None) -> Path | None:
             return candidate
         raise ChromeUnavailable(f"TEST_DASH_CHROME points at a missing file: {candidate}")
 
-    for name in _CHROMIUM_NAMES:
-        on_path = shutil.which(name)
-        if on_path:
-            return Path(on_path)
+    return _choreographer_browser()
 
-    candidates: list[Path] = []
-    for var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
-        base = os.environ.get(var)
-        if not base:
-            continue
-        root = Path(base)
-        candidates += [
-            root / "Google" / "Chrome" / "Application" / "chrome.exe",
-            root / "Microsoft" / "Edge" / "Application" / "msedge.exe",
-            root / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe",
-        ]
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    if local_appdata:
-        root = Path(local_appdata)
-        candidates += [
-            root / "Google" / "Chrome" / "Application" / "chrome.exe",
-            root / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe",
-        ]
 
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-    return None
+def _choreographer_browser() -> Path | None:
+    """Ask Kaleido's browser layer for an installed Chromium-family browser.
+
+    ``skip_local`` keeps choreographer away from any Chrome it may have
+    downloaded itself - nothing is ever downloaded here.  choreographer is a
+    dependency of kaleido, so it is only present when the ``chrome`` extra is
+    installed; without it there is simply no Chrome backend to use.
+    """
+    try:
+        from choreographer.browsers.chromium import Chromium
+    except ImportError:  # kaleido, and with it choreographer, is an optional extra
+        return None
+
+    found = Chromium.find_browser(skip_local=True)
+    return Path(found) if found else None
 
 
 def kaleido_installed() -> bool:

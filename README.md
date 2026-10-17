@@ -93,7 +93,7 @@ Edge or Brave). Kaleido is an optional extra rather than a hard dependency, so
 enable it with:
 
 ```bash
-uv sync --extra chrome        # or: uv add kaleido
+uv sync --extra chrome        # or: uv add kaleido choreographer
 ```
 
 (The dev group already pulls in Kaleido, so a development checkout can exercise
@@ -123,9 +123,12 @@ module each, plus a shared `Renderer` protocol in `base.py` — while `export.py
 only owns the figure gallery, the write loop and the CLI.
 
 Browser discovery, in order: `--chrome`/`--firefox`, then `TEST_DASH_CHROME` /
-`TEST_DASH_FIREFOX`, then `PATH`, then the usual install locations. A browser is
-only accepted after a one-off 100×100 probe render actually succeeds, so `auto`
-never picks a backend it cannot use. `--engine chrome` fails loudly (exit code 1)
+`TEST_DASH_FIREFOX`, then Kaleido's own browser layer (`choreographer`, a
+dependency of Kaleido) which checks `BROWSER_PATH`, the `PATH`, the Windows
+registry and the usual install locations. Only a browser the user already had is
+ever used — `skip_local` keeps choreographer away from any Chrome it could have
+downloaded itself. A browser is only accepted after a one-off 100×100 probe
+render actually succeeds, so `auto` never picks a backend it cannot use. `--engine chrome` fails loudly (exit code 1)
 rather than silently falling back:
 
 ```console
