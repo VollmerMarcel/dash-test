@@ -128,7 +128,10 @@ dependency of Kaleido) which checks `BROWSER_PATH`, the `PATH`, the Windows
 registry and the usual install locations. Only a browser the user already had is
 ever used — `skip_local` keeps choreographer away from any Chrome it could have
 downloaded itself. A browser is only accepted after a one-off 100×100 probe
-render actually succeeds, so `auto` never picks a backend it cannot use. `--engine chrome` fails loudly (exit code 1)
+render actually succeeds, so `auto` never picks a backend it cannot use. The
+choice is never handed back to Kaleido's own search either: a browser we did not
+discover ourselves is never probed, so `auto` falls back to Firefox rather than
+letting Kaleido attach to a browser it downloaded. `--engine chrome` fails loudly (exit code 1)
 rather than silently falling back:
 
 ```console

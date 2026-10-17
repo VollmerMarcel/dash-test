@@ -87,14 +87,15 @@ def kaleido_installed() -> bool:
     return major.isdigit() and int(major) >= 1
 
 
-def probe_chrome(browser: StrPath | None = None) -> bool:
+def probe_chrome(browser: StrPath) -> bool:
     """Render a 100x100 test figure through the Chrome/Kaleido backend.
 
-    ``browser`` pins the executable for the probe via ``BROWSER_PATH`` - the
-    variable the underlying ``choreographer`` package consults when looking for
-    a browser.  Every failure (Kaleido missing, no browser, a browser that
-    cannot render) is reported as ``False`` rather than raised, so callers can
-    fall back cleanly; the previous environment is always restored.
+    ``browser`` is pinned via ``BROWSER_PATH`` - the variable the underlying
+    ``choreographer`` package consults when looking for a browser - so the probe
+    can never silently settle for a browser Kaleido found (or downloaded) on its
+    own.  Every failure (Kaleido missing, a browser that cannot render) is
+    reported as ``False`` rather than raised, so callers can fall back cleanly;
+    the previous environment is always restored.
     """
     if not kaleido_installed():
         return False
@@ -104,8 +105,7 @@ def probe_chrome(browser: StrPath | None = None) -> bool:
 
     figure = go.Figure(go.Scatter(x=[0, 1], y=[1, 0]))
     previous = os.environ.get("BROWSER_PATH")
-    if browser is not None:
-        os.environ["BROWSER_PATH"] = str(browser)
+    os.environ["BROWSER_PATH"] = str(browser)
     try:
         pio.to_image(figure, format="png", width=100, height=100)
     except Exception:  # noqa: BLE001 - any failure simply means "not usable"

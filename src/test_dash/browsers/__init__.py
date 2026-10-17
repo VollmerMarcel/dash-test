@@ -61,17 +61,15 @@ def select_renderer(
     be proven to work; an explicit ``"chrome"`` raises :class:`ChromeUnavailable`
     rather than quietly exporting through a backend the user did not ask for.
 
-    A discovered browser is always pinned for the probe, so an explicit
-    ``--chrome`` choice can never be overruled by the backend's own
-    autodetection; only when nothing was discovered is the backend trusted to
-    find a browser itself.
+    Chrome is only ever driven through a browser we discovered ourselves and
+    pinned for the probe.  Handing the choice back to Kaleido's own
+    autodetection would let it use a browser it downloaded earlier, which this
+    exporter never does.
     """
     if engine != "firefox":
         browser = find_chromium_browser(chrome)
         if browser is not None and probe_chrome(browser):
             return ChromeRenderer(browser)
-        if browser is None and probe_chrome():
-            return ChromeRenderer()
         if engine == "chrome":
             raise ChromeUnavailable(chrome_failure_hint(browser))
     return FirefoxBiDi(find_firefox(firefox), log_path=log_path)

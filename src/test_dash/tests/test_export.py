@@ -283,26 +283,30 @@ def test_select_renderer_pins_the_browser_it_found(
     assert probes == [Path("msedge.exe")], "probe must be pinned, never unpinned"
 
 
-def test_select_renderer_auto_can_use_an_undiscovered_browser(
+def test_select_renderer_auto_never_uses_an_undiscovered_browser(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With nothing discovered, the backend may still find a browser itself."""
+    """With nothing discovered we go to Firefox, never to Kaleido's own search.
+
+    Leaving the choice to Kaleido would let it drive a browser it downloaded
+    itself.
+    """
     import test_dash.browsers as browsers_module
 
     probes: list[object] = []
 
-    def _probe(browser: object = None) -> bool:
+    def _probe(browser: object) -> bool:
         probes.append(browser)
         return True
 
     monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
     monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
     renderer = browsers_module.select_renderer("auto")
 
-    assert isinstance(renderer, ChromeRenderer)
-    assert renderer.executable is None
-    assert probes == [None]
+    assert isinstance(renderer, FirefoxBiDi)
+    assert probes == [], "an undiscovered browser must never be probed"
 
 
 def test_select_renderer_auto_falls_back_to_firefox_when_chrome_fails(
@@ -334,7 +338,9 @@ def test_select_renderer_auto_uses_firefox_without_kaleido(
     )
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
-    assert probe_chrome() is False, "a missing Kaleido must never render anything"
+    assert probe_chrome(Path("chrome.exe")) is False, (
+        "a missing Kaleido must never render anything"
+    )
     assert isinstance(browsers_module.select_renderer("auto"), FirefoxBiDi)
 
 
@@ -357,12 +363,19 @@ def test_select_renderer_explicit_chrome_reports_a_missing_browser(
 ) -> None:
     import test_dash.browsers as browsers_module
 
+    probes: list[object] = []
+
+    def _probe(browser: object) -> bool:
+        probes.append(browser)
+        return True
+
     monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
 
     with pytest.raises(ChromeUnavailable) as excinfo:
         browsers_module.select_renderer("chrome")
     assert "no Chrome" in str(excinfo.value)
+    assert probes == [], "an undiscovered browser must never be probed"
 
 
 def test_select_renderer_explicit_chrome_reports_missing_kaleido(
