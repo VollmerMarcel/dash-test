@@ -93,7 +93,7 @@ Edge or Brave). Kaleido is an optional extra rather than a hard dependency, so
 enable it with:
 
 ```bash
-uv sync --extra chrome        # or: uv add kaleido choreographer
+uv sync --extra chrome        # or: uv add kaleido
 ```
 
 (The dev group already pulls in Kaleido, so a development checkout can exercise
@@ -122,12 +122,13 @@ imports dash or flask. The two backends live in `src/test_dash/browsers/` — on
 module each, plus a shared `Renderer` protocol in `base.py` — while `export.py`
 only owns the figure gallery, the write loop and the CLI.
 
-Browser discovery, in order: `--chrome`/`--firefox`, then `TEST_DASH_CHROME` /
-`TEST_DASH_FIREFOX`, then Kaleido's own browser layer (`choreographer`, a
-dependency of Kaleido) which checks `BROWSER_PATH`, the `PATH`, the Windows
-registry and the usual install locations. Only a browser the user already had is
-ever used — `skip_local` keeps choreographer away from any Chrome it could have
-downloaded itself. A browser is only accepted after a one-off 100×100 probe
+Browser selection is deliberately thin. With `--chrome`/`TEST_DASH_CHROME` (or
+`--firefox`/`TEST_DASH_FIREFOX`) you name the browser yourself; without either,
+Kaleido's own browser layer picks one exactly as it would without this exporter,
+checking `BROWSER_PATH`, the `PATH`, the Windows registry and the usual install
+locations. Nothing is ever downloaded by the exporter, so only a browser already
+on the machine (including one you fetched yourself with `plotly.io.get_chrome()`)
+can be used. A browser is only accepted after a one-off 100×100 probe
 render actually succeeds, so `auto` never picks a backend it cannot use. `--engine chrome` fails loudly (exit code 1)
 rather than silently falling back:
 

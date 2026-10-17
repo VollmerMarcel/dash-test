@@ -1597,7 +1597,6 @@ dependencies = [
 
 [package.optional-dependencies]
 chrome = [
-    { name = "choreographer" },
     { name = "kaleido" },
 ]
 
@@ -1613,7 +1612,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "choreographer", marker = "extra == 'chrome'", specifier = ">=1.4" },
     { name = "click", specifier = ">=8.5.0" },
     { name = "dash", specifier = ">=4.4.1" },
     { name = "kaleido", marker = "extra == 'chrome'", specifier = ">=1" },

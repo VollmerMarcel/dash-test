@@ -28,51 +28,30 @@ from .base import (
 if TYPE_CHECKING:
     import plotly.graph_objects as go
 
-def find_chromium_browser(explicit: StrPath | None = None) -> Path | None:
-    """Locate a Chromium-family browser for the Chrome/Kaleido backend.
 
-    Order: explicit argument, ``TEST_DASH_CHROME`` env var, then Kaleido's own
-    browser layer (``choreographer``).  That layer already knows every
-    Chromium-family browser we would accept (Chrome, Chromium, Edge, Brave,
-    Vivaldi) and searches ``BROWSER_PATH``, the ``PATH``, the Windows registry
-    and the usual install locations, so the list lives with Kaleido instead of
-    with us.
+def requested_browser(explicit: StrPath | None = None) -> Path | None:
+    """The browser the user explicitly asked for, else ``None``.
 
-    Returns ``None`` when nothing is installed; an explicit path or env override
-    that does not exist raises :class:`ChromeUnavailable` instead, so a typo is
-    never silently ignored.
+    ``--chrome PATH`` wins, then ``TEST_DASH_CHROME``.  Both must point at a real
+    file, so a typo is a loud error rather than a silent fall back to
+    autodetection.  Returning ``None`` means "no preference": Kaleido's own
+    browser layer then picks the browser exactly as it would without us.
+
+    Nothing is ever downloaded here - ``plotly.io.get_chrome()`` and
+    ``kaleido.get_chrome_sync()`` are never called, so the browser must already
+    be on the machine (including one the user fetched themselves).
     """
-    if explicit is not None:
-        candidate = Path(explicit)
+    for option, value in (
+        ("--chrome", explicit),
+        ("TEST_DASH_CHROME", os.environ.get("TEST_DASH_CHROME")),
+    ):
+        if not value:
+            continue
+        candidate = Path(value)
         if candidate.is_file():
             return candidate
-        raise ChromeUnavailable(f"no Chrome/Chromium executable at {candidate}")
-
-    env_override = os.environ.get("TEST_DASH_CHROME")
-    if env_override:
-        candidate = Path(env_override)
-        if candidate.is_file():
-            return candidate
-        raise ChromeUnavailable(f"TEST_DASH_CHROME points at a missing file: {candidate}")
-
-    return _choreographer_browser()
-
-
-def _choreographer_browser() -> Path | None:
-    """Ask Kaleido's browser layer for an installed Chromium-family browser.
-
-    ``skip_local`` keeps choreographer away from any Chrome it may have
-    downloaded itself - nothing is ever downloaded here.  choreographer is a
-    dependency of kaleido, so it is only present when the ``chrome`` extra is
-    installed; without it there is simply no Chrome backend to use.
-    """
-    try:
-        from choreographer.browsers.chromium import Chromium
-    except ImportError:  # kaleido, and with it choreographer, is an optional extra
-        return None
-
-    found = Chromium.find_browser(skip_local=True)
-    return Path(found) if found else None
+        raise ChromeUnavailable(f"{option} points at a missing file: {candidate}")
+    return None
 
 
 def kaleido_installed() -> bool:
@@ -127,8 +106,8 @@ def chrome_failure_hint(browser: Path | None) -> str:
         )
     if browser is None:
         return (
-            "no Chrome, Chromium, Edge or Brave binary found; "
-            "pass --chrome PATH or set TEST_DASH_CHROME"
+            "no Chrome/Chromium browser Kaleido could drive; install one, run "
+            "plotly.io.get_chrome(), or pass --chrome PATH"
         )
     return f"Kaleido could not render with {browser}; pass --chrome PATH to override"
 
