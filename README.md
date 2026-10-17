@@ -118,7 +118,9 @@ removed afterwards. (Chrome may additionally leave its own component-updater
 downloads in `%TEMP%` — that is the browser's doing, not the exporter's.) Both engines produce the same layout and pixel size; only
 tiny anti-aliasing differences distinguish them. The figures live in
 `src/test_dash/figures.py`, which imports **plotly only** — the export path never
-imports dash or flask.
+imports dash or flask. The two backends live in `src/test_dash/browsers/` — one
+module each, plus a shared `Renderer` protocol in `base.py` — while `export.py`
+only owns the figure gallery, the write loop and the CLI.
 
 Browser discovery, in order: `--chrome`/`--firefox`, then `TEST_DASH_CHROME` /
 `TEST_DASH_FIREFOX`, then `PATH`, then the usual install locations. A browser is
@@ -153,7 +155,11 @@ src/test_dash/
 ├── data.py            # deterministic synthetic dataset builder
 ├── figures.py         # plotly-only figure builders (no dash import)
 ├── app.py             # dash layout, callbacks, create_app()
-├── export.py          # Chrome/Firefox PNG/SVG exporter + CLI
+├── export.py          # figure gallery + write loop + CLI
+├── browsers/          # the static-image backends
+│   ├── base.py        # shared types: Engine, Renderer protocol, errors
+│   ├── chrome.py      # Chrome/Kaleido backend (plotly.io.to_image)
+│   └── firefox.py     # headless-Firefox WebDriver BiDi backend
 ├── __init__.py        # main(): serve the app, or --export-figures
 ├── assets/style.css   # auto-served static CSS
 └── tests/             # unit tests (browser tests are opt-in)
@@ -179,5 +185,6 @@ uv run mypy          # checks src/ with the config in pyproject.toml
 Hints are verified against `pandas-stubs`, `types-tqdm` and the `dash` /
 `websockets` hints those packages ship. Plotly has no stubs, so its names are
 treated as `Any`. Types that are used in more than one place get a name:
-`StrPath`, `JsonObject` and `Engine` in `export.py`, `ClickData` in `app.py`, and
-`Profile` / `MeanSd` in `data.py`.
+`StrPath` and `Engine` in `browsers/base.py`, `JsonObject` in
+`browsers/firefox.py`, `ClickData` in `app.py`, and `Profile` / `MeanSd` in
+`data.py`.
