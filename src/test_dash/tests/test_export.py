@@ -8,6 +8,7 @@ fast and hermetic.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterable, Iterator
@@ -18,25 +19,24 @@ from typing import Any, Literal
 import pytest
 from click.testing import CliRunner
 
-from test_dash.data import CROPS
-from test_dash.export import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
+from test_dash.browsers import (
     ChromeRenderer,
     ChromeUnavailable,
+    Engine,
+    ExportError,
+    FirefoxBiDi,
     FirefoxUnavailable,
-    Preset,
     decode_data_url,
-    engine_name,
+    figure_to_html,
     find_chromium_browser,
     find_firefox,
-    figure_to_html,
     kaleido_installed,
     plotly_js_path,
-    preset_figures,
     probe_chrome,
     select_renderer,
 )
+from test_dash.data import CROPS
+from test_dash.export import DEFAULT_HEIGHT, DEFAULT_WIDTH, Preset, preset_figures
 from test_dash.figures import mean_yield_chart
 
 
@@ -129,8 +129,6 @@ def test_decode_data_url_percent_encoded() -> None:
 
 
 def test_decode_data_url_rejects_garbage() -> None:
-    from test_dash.export import ExportError
-
     with pytest.raises(ExportError):
         decode_data_url("not-a-data-uri")
 
@@ -180,10 +178,8 @@ def test_find_chromium_browser_honours_the_env_override(
 def test_find_chromium_browser_returns_none_when_nothing_is_installed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
-
     monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
-    monkeypatch.setattr(export_module.shutil, "which", lambda name: None)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
     for var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "LOCALAPPDATA"):
         monkeypatch.delenv(var, raising=False)
 
@@ -204,7 +200,7 @@ def test_find_chromium_browser_locates_local_browser() -> None:
 def test_select_renderer_firefox_never_probes_chrome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     searches: list[str] = []
 
@@ -212,30 +208,30 @@ def test_select_renderer_firefox_never_probes_chrome(
         searches.append("chromium")
         return Path("chrome.exe")
 
-    monkeypatch.setattr(export_module, "find_chromium_browser", _searched)
-    monkeypatch.setattr(export_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_chromium_browser", _searched)
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
-    renderer = export_module.select_renderer("firefox")
+    renderer = browsers_module.select_renderer("firefox")
 
-    assert isinstance(renderer, export_module.FirefoxBiDi)
-    assert engine_name(renderer) == "firefox"
+    assert isinstance(renderer, FirefoxBiDi)
+    assert renderer.engine == "firefox"
     assert searches == []
 
 
 def test_select_renderer_auto_prefers_a_working_chrome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: True)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: True)
 
-    renderer = export_module.select_renderer("auto")
+    renderer = browsers_module.select_renderer("auto")
 
-    assert isinstance(renderer, export_module.ChromeRenderer)
-    assert engine_name(renderer) == "chrome"
+    assert isinstance(renderer, ChromeRenderer)
+    assert renderer.engine == "chrome"
     assert renderer.executable == Path("chrome.exe")
 
 
@@ -243,7 +239,7 @@ def test_select_renderer_pins_the_browser_it_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An explicit --chrome must win over the backend's own autodetection."""
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     probes: list[object] = []
 
@@ -252,15 +248,15 @@ def test_select_renderer_pins_the_browser_it_found(
         return True
 
     monkeypatch.setattr(
-        export_module,
+        browsers_module,
         "find_chromium_browser",
         lambda explicit=None: Path("msedge.exe"),
     )
-    monkeypatch.setattr(export_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
 
-    renderer = export_module.select_renderer("chrome", chrome="msedge.exe")
+    renderer = browsers_module.select_renderer("chrome", chrome="msedge.exe")
 
-    assert isinstance(renderer, export_module.ChromeRenderer)
+    assert isinstance(renderer, ChromeRenderer)
     assert renderer.executable == Path("msedge.exe")
     assert probes == [Path("msedge.exe")], "probe must be pinned, never unpinned"
 
@@ -269,7 +265,7 @@ def test_select_renderer_auto_can_use_an_undiscovered_browser(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With nothing discovered, the backend may still find a browser itself."""
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     probes: list[object] = []
 
@@ -277,12 +273,12 @@ def test_select_renderer_auto_can_use_an_undiscovered_browser(
         probes.append(browser)
         return True
 
-    monkeypatch.setattr(export_module, "find_chromium_browser", lambda explicit=None: None)
-    monkeypatch.setattr(export_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
+    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
 
-    renderer = export_module.select_renderer("auto")
+    renderer = browsers_module.select_renderer("auto")
 
-    assert isinstance(renderer, export_module.ChromeRenderer)
+    assert isinstance(renderer, ChromeRenderer)
     assert renderer.executable is None
     assert probes == [None]
 
@@ -290,74 +286,76 @@ def test_select_renderer_auto_can_use_an_undiscovered_browser(
 def test_select_renderer_auto_falls_back_to_firefox_when_chrome_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: False)
-    monkeypatch.setattr(export_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
-    renderer = export_module.select_renderer("auto")
+    renderer = browsers_module.select_renderer("auto")
 
-    assert isinstance(renderer, export_module.FirefoxBiDi)
-    assert engine_name(renderer) == "firefox"
+    assert isinstance(renderer, FirefoxBiDi)
+    assert renderer.engine == "firefox"
 
 
 def test_select_renderer_auto_uses_firefox_without_kaleido(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
+    import test_dash.browsers.chrome as chrome_module
 
-    monkeypatch.setattr(export_module, "kaleido_installed", lambda: False)
+    monkeypatch.setattr(chrome_module, "kaleido_installed", lambda: False)
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
     assert probe_chrome() is False, "a missing Kaleido must never render anything"
-    assert isinstance(select_renderer("auto"), export_module.FirefoxBiDi)
+    assert isinstance(browsers_module.select_renderer("auto"), FirefoxBiDi)
 
 
 def test_select_renderer_explicit_chrome_fails_loudly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
 
     with pytest.raises(ChromeUnavailable):
-        export_module.select_renderer("chrome")
+        browsers_module.select_renderer("chrome")
 
 
 def test_select_renderer_explicit_chrome_reports_a_missing_browser(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
 
-    monkeypatch.setattr(export_module, "find_chromium_browser", lambda explicit=None: None)
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
 
     with pytest.raises(ChromeUnavailable) as excinfo:
-        export_module.select_renderer("chrome")
+        browsers_module.select_renderer("chrome")
     assert "no Chrome" in str(excinfo.value)
 
 
 def test_select_renderer_explicit_chrome_reports_missing_kaleido(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import test_dash.export as export_module
+    import test_dash.browsers as browsers_module
+    import test_dash.browsers.chrome as chrome_module
 
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "kaleido_installed", lambda: False)
+    monkeypatch.setattr(chrome_module, "kaleido_installed", lambda: False)
 
     with pytest.raises(ChromeUnavailable) as excinfo:
-        export_module.select_renderer("chrome")
+        browsers_module.select_renderer("chrome")
     assert "Kaleido" in str(excinfo.value)
 
 
@@ -567,10 +565,16 @@ def test_standalone_export_module_cli(monkeypatch: pytest.MonkeyPatch) -> None:
 class _FakeBrowser:
     """Stands in for :class:`FirefoxBiDi` so the loop needs no real browser."""
 
+    engine: Engine = "firefox"
+
     def __init__(self, *args: object, **kwargs: object) -> None:
         # FirefoxBiDi is handed the executable positionally; mirror it so the
         # verbose configuration report has something to print.
         self.firefox = Path(str(args[0])) if args else Path("firefox.exe")
+
+    @property
+    def executable(self) -> Path:
+        return self.firefox
 
     def __enter__(self) -> _FakeBrowser:
         return self
@@ -615,7 +619,8 @@ FakeExport = tuple[ModuleType, list[_FakeBar]]
 
 @pytest.fixture
 def fake_export(monkeypatch: pytest.MonkeyPatch) -> FakeExport:
-    """Patch the browser and the progress bar out of :mod:`test_dash.export`."""
+    """Patch the browser and the progress bar out of the export machinery."""
+    import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
     bars: list[_FakeBar] = []
@@ -627,10 +632,10 @@ def fake_export(monkeypatch: pytest.MonkeyPatch) -> FakeExport:
 
     # With no Chromium browser to be found, ``auto`` resolves to the Firefox
     # engine without ever touching Kaleido - so the suite stays hermetic.
-    monkeypatch.setattr(export_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
-    monkeypatch.setattr(export_module, "find_chromium_browser", lambda explicit=None: None)
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: False)
-    monkeypatch.setattr(export_module, "FirefoxBiDi", _FakeBrowser)
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "FirefoxBiDi", _FakeBrowser)
     monkeypatch.setattr(export_module, "tqdm", make_bar)
     return export_module, bars
 
@@ -719,7 +724,7 @@ def test_export_all_forwards_the_engine_choice(
 
     out = capsys.readouterr().out
     assert "engine:   firefox" in out
-    assert "firefox:  firefox.exe" in out
+    assert "browser:  firefox.exe" in out
     assert "output:" in out
 
 
@@ -729,13 +734,14 @@ def test_export_all_verbose_reports_the_chrome_engine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     import plotly.io as pio
+    import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
     # Hedge the whole Chrome path so it is exercised without a real browser.
     monkeypatch.setattr(
-        export_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
+        browsers_module, "find_chromium_browser", lambda explicit=None: Path("chrome.exe")
     )
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: True)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: True)
     monkeypatch.setattr(pio, "to_image", lambda figure, **kwargs: b"\x89PNG\r\n\x1a\n")
 
     written = export_module.export_all(tmp_path / "out", engine="chrome", verbose=True)
@@ -751,10 +757,11 @@ def test_export_all_verbose_reports_the_chrome_engine(
 def test_export_all_leaves_no_directory_when_the_engine_is_unusable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
-    monkeypatch.setattr(export_module, "find_chromium_browser", lambda explicit=None: None)
-    monkeypatch.setattr(export_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "find_chromium_browser", lambda explicit=None: None)
+    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
 
     output = tmp_path / "out"
     with pytest.raises(ChromeUnavailable):
@@ -791,7 +798,7 @@ def test_run_export_reports_an_unavailable_engine(
     import test_dash.export as export_module
 
     def boom(*args: object, **kwargs: object) -> list[Path]:
-        raise export_module.ChromeUnavailable("no Chromium browser found")
+        raise ChromeUnavailable("no Chromium browser found")
 
     monkeypatch.setattr(export_module, "export_all", boom)
 
@@ -830,8 +837,6 @@ def test_mean_yield_chart_highlight_only_colours_one_bar() -> None:
     reason="set TEST_DASH_BROWSER_EXPORT=1 to render through headless Firefox",
 )
 def test_render_png_through_firefox(tmp_path: Path) -> None:
-    from test_dash.export import FirefoxBiDi
-
     preset = preset_figures()[0]
     destination = tmp_path / "figure.png"
     with FirefoxBiDi(find_firefox()) as browser:
@@ -882,8 +887,6 @@ _GEOMETRY_JS = """
 def test_title_keeps_clear_of_the_legend_and_plot_area(tmp_path: Path) -> None:
     """Regression: the top legend used to be drawn straight through the title."""
     import json
-
-    from test_dash.export import FirefoxBiDi
 
     preset = next(p for p in preset_figures() if p.name == "01_rainfall_vs_yield")
     html_path = tmp_path / "geometry.html"

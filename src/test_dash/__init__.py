@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import click
 
 if TYPE_CHECKING:
-    from .export import Engine
+    from .browsers import Engine
 
 __all__ = ["main", "build_cli"]
 
