@@ -47,31 +47,6 @@ from .firefox import (
     plotly_js_path,
 )
 
-__all__ = [
-    "DEFAULT_FORMAT",
-    "DEFAULT_HEIGHT",
-    "DEFAULT_SCALE",
-    "DEFAULT_WIDTH",
-    "ENGINES",
-    "ChromeRenderer",
-    "ChromeUnavailable",
-    "Engine",
-    "ExportError",
-    "FirefoxBiDi",
-    "FirefoxUnavailable",
-    "Renderer",
-    "StrPath",
-    "chrome_failure_hint",
-    "decode_data_url",
-    "figure_to_html",
-    "find_chromium_browser",
-    "find_firefox",
-    "kaleido_installed",
-    "plotly_js_path",
-    "probe_chrome",
-    "select_renderer",
-]
-
 
 def select_renderer(
     engine: Engine,
