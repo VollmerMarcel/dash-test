@@ -80,10 +80,11 @@ user_pref("network.captive-portal-service.enabled", false);
 # Firefox discovery
 # --------------------------------------------------------------------------- #
 def find_firefox(explicit: StrPath | None = None) -> Path:
-    """Locate ``firefox.exe`` without installing anything.
+    """Locate the Firefox binary without installing anything.
 
-    Order: the ``--firefox`` argument, ``PATH``, then the usual Windows install
-    locations.
+    Order: the ``--firefox`` argument, then ``PATH``.  On Windows the usual
+    install locations are searched as well; elsewhere ``PATH`` is assumed to be
+    enough.
     """
     if explicit:
         candidate = Path(explicit)
@@ -95,6 +96,18 @@ def find_firefox(explicit: StrPath | None = None) -> Path:
     if on_path:
         return Path(on_path)
 
+    # Only Windows ships Firefox without putting it on the PATH, so the search
+    # stops here everywhere else.
+    if os.name == "nt":
+        for candidate in _windows_install_locations():
+            if candidate.is_file():
+                return candidate
+
+    raise FirefoxUnavailable("could not find Firefox; pass --firefox PATH")
+
+
+def _windows_install_locations() -> list[Path]:
+    """The usual Windows install locations - Windows only, see :func:`find_firefox`."""
     candidates: list[Path] = []
     for var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
         base = os.environ.get(var)
@@ -103,12 +116,7 @@ def find_firefox(explicit: StrPath | None = None) -> Path:
     local_appdata = os.environ.get("LOCALAPPDATA")
     if local_appdata:
         candidates.append(Path(local_appdata) / "Mozilla Firefox" / "firefox.exe")
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-
-    raise FirefoxUnavailable("could not find firefox.exe; pass --firefox PATH")
+    return candidates
 
 
 # --------------------------------------------------------------------------- #
