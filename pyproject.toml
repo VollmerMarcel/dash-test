@@ -1,0 +1,70 @@
+[project]
+name = "test-dash"
+version = "0.1.0"
+description = "A modest-complexity Dash scatter-plot example app"
+readme = "README.md"
+authors = [
+    { name = "Marcel Vollmer", email = "marcel.vollmer11@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.5.0",
+    "dash>=4.4.1",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "tqdm>=4.70.1",
+    "websockets>=17.2",
+]
+
+[project.optional-dependencies]
+# Static images through plotly's own backend (Kaleido + an installed Chromium
+# browser).  Optional on purpose: the Firefox route needs nothing extra.
+chrome = ["kaleido>=1"]
+
+[project.scripts]
+test-dash = "test_dash:main"
+
+[tool.pytest.ini_options]
+testpaths = ["src/test_dash/tests"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["src"]
+
+# Roughly "strict", minus two checks that only fight third-party code:
+#   * disallow_untyped_calls  - dash's own helpers (to_plotly_json, ...) are untyped
+#   * no_implicit_reexport    - app.py deliberately re-exports build_figure for tests
+warn_unused_configs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+strict_equality = true
+extra_checks = true
+warn_unreachable = true
+show_error_codes = true
+
+# plotly ships neither type hints nor a py.typed marker, so its names are Any.
+[[tool.mypy.overrides]]
+module = ["plotly", "plotly.*"]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "dash[testing]>=4.4.1",
+    "kaleido>=1",
+    "mypy>=2.4.0",
+    "pandas-stubs>=3.0.5.260914",
+    "pillow>=13.0.0",
+    "types-tqdm>=4.70.0.20260906",
+]
