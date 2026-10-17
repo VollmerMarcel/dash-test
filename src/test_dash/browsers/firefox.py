@@ -82,21 +82,14 @@ user_pref("network.captive-portal-service.enabled", false);
 def find_firefox(explicit: StrPath | None = None) -> Path:
     """Locate ``firefox.exe`` without installing anything.
 
-    Order: explicit argument, ``TEST_DASH_FIREFOX`` env var, ``PATH``, then the
-    usual Windows install locations.
+    Order: the ``--firefox`` argument, ``PATH``, then the usual Windows install
+    locations.
     """
     if explicit:
         candidate = Path(explicit)
         if candidate.is_file():
             return candidate
-        raise FirefoxUnavailable(f"no firefox executable at {candidate}")
-
-    env_override = os.environ.get("TEST_DASH_FIREFOX")
-    if env_override:
-        candidate = Path(env_override)
-        if candidate.is_file():
-            return candidate
-        raise FirefoxUnavailable(f"TEST_DASH_FIREFOX points at a missing file: {candidate}")
+        raise FirefoxUnavailable(f"--firefox points at a missing file: {candidate}")
 
     on_path = shutil.which("firefox")
     if on_path:
@@ -115,9 +108,7 @@ def find_firefox(explicit: StrPath | None = None) -> Path:
         if candidate.is_file():
             return candidate
 
-    raise FirefoxUnavailable(
-        "could not find firefox.exe; pass --firefox PATH or set TEST_DASH_FIREFOX"
-    )
+    raise FirefoxUnavailable("could not find firefox.exe; pass --firefox PATH")
 
 
 # --------------------------------------------------------------------------- #

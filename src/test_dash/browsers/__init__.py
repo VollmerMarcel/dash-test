@@ -61,8 +61,8 @@ def select_renderer(
     be proven to work; an explicit ``"chrome"`` raises :class:`ChromeUnavailable`
     rather than quietly exporting through a backend the user did not ask for.
 
-    With ``--chrome``/``TEST_DASH_CHROME`` the browser is named by the user and
-    pinned for the probe.  Without either, Kaleido's own browser layer picks one,
+    With ``--chrome`` the browser is named by the user and
+    pinned for the probe.  Without it, Kaleido's own browser layer picks one,
     exactly as it would without this exporter, and the probe confirms it works.
     """
     if engine != "firefox":

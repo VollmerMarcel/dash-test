@@ -157,39 +157,14 @@ def test_requested_browser_rejects_a_missing_explicit_path() -> None:
         requested_browser(r"C:\definitely\not\here\chrome.exe")
 
 
-def test_requested_browser_rejects_a_missing_env_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("TEST_DASH_CHROME", r"C:\definitely\not\here\chrome.exe")
-    with pytest.raises(ChromeUnavailable, match="TEST_DASH_CHROME"):
-        requested_browser()
-
-
-def test_requested_browser_honours_the_env_override(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_requested_browser_accepts_an_existing_path(tmp_path: Path) -> None:
     fake = tmp_path / "chrome.exe"
     fake.write_bytes(b"fake binary")
-    monkeypatch.setenv("TEST_DASH_CHROME", str(fake))
-    assert requested_browser() == fake
+    assert requested_browser(fake) == fake
 
 
-def test_requested_browser_prefers_the_explicit_path(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    explicit = tmp_path / "explicit.exe"
-    explicit.write_bytes(b"fake binary")
-    from_env = tmp_path / "from-env.exe"
-    from_env.write_bytes(b"fake binary")
-    monkeypatch.setenv("TEST_DASH_CHROME", str(from_env))
-    assert requested_browser(explicit) == explicit
-
-
-def test_requested_browser_is_empty_without_a_choice(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Neither --chrome nor TEST_DASH_CHROME -> Kaleido picks the browser."""
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
+def test_requested_browser_is_empty_without_a_choice() -> None:
+    """No --chrome -> Kaleido picks the browser."""
     assert requested_browser() is None
 
 
@@ -262,35 +237,11 @@ def test_select_renderer_pins_a_browser_the_user_named(
     assert probes == [named], "a named browser must be probed pinned"
 
 
-def test_select_renderer_honours_the_env_override(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import test_dash.browsers as browsers_module
-
-    named = tmp_path / "chrome.exe"
-    named.write_bytes(b"fake binary")
-    monkeypatch.setenv("TEST_DASH_CHROME", str(named))
-    probes: list[object] = []
-
-    def _probe(browser: object = None) -> bool:
-        probes.append(browser)
-        return True
-
-    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
-
-    renderer = browsers_module.select_renderer("auto")
-
-    assert isinstance(renderer, ChromeRenderer)
-    assert renderer.executable == named
-    assert probes == [named]
-
-
 def test_select_renderer_auto_falls_back_to_firefox_when_chrome_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
 
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
     monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
@@ -331,7 +282,6 @@ def test_select_renderer_explicit_chrome_reports_a_missing_browser(
 ) -> None:
     import test_dash.browsers as browsers_module
 
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
     monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
 
     with pytest.raises(ChromeUnavailable) as excinfo:
@@ -345,7 +295,6 @@ def test_select_renderer_explicit_chrome_reports_missing_kaleido(
     import test_dash.browsers as browsers_module
     import test_dash.browsers.chrome as chrome_module
 
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
     monkeypatch.setattr(chrome_module, "kaleido_installed", lambda: False)
 
     with pytest.raises(ChromeUnavailable) as excinfo:
@@ -624,12 +573,9 @@ def fake_export(monkeypatch: pytest.MonkeyPatch) -> FakeExport:
         bars.append(bar)
         return bar
 
-    # With no browser named by the user and a probe that never passes, ``auto``
-    # resolves to the Firefox engine without ever touching Kaleido - so the
-    # suite stays hermetic.
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
+    # With no --chrome and a probe that never passes, ``auto`` resolves to the
+    # Firefox engine without ever touching Kaleido - so the suite stays hermetic.
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
-    monkeypatch.setattr(browsers_module, "requested_browser", lambda explicit=None: None)
     monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
     monkeypatch.setattr(browsers_module, "FirefoxBiDi", _FakeBrowser)
     monkeypatch.setattr(export_module, "tqdm", make_bar)
@@ -734,8 +680,6 @@ def test_export_all_verbose_reports_the_chrome_engine(
     import test_dash.export as export_module
 
     # Hedge the whole Chrome path so it is exercised without a real browser.
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
-    monkeypatch.setattr(browsers_module, "requested_browser", lambda explicit=None: None)
     monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: True)
     monkeypatch.setattr(pio, "to_image", lambda figure, **kwargs: b"\x89PNG\r\n\x1a\n")
 
@@ -755,8 +699,6 @@ def test_export_all_leaves_no_directory_when_the_engine_is_unusable(
     import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
-    monkeypatch.delenv("TEST_DASH_CHROME", raising=False)
-    monkeypatch.setattr(browsers_module, "requested_browser", lambda explicit=None: None)
     monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
 
     output = tmp_path / "out"
