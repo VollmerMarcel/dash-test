@@ -1,8 +1,8 @@
 """Tests for the offline figure exporter.
 
-Everything here runs without a browser.  The tests that actually drive Chrome or
-Firefox are opt-in via ``TEST_DASH_BROWSER_EXPORT=1`` so the normal suite stays
-fast and hermetic.
+Everything here runs without a browser.  The tests that actually drive a real
+browser (Chromium or Firefox) are opt-in via ``TEST_DASH_BROWSER_EXPORT=1`` so
+the normal suite stays fast and hermetic.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ import pytest
 from click.testing import CliRunner
 
 from test_dash.browsers import (
-    ChromeRenderer,
-    ChromeUnavailable,
+    ChromiumRenderer,
+    ChromiumUnavailable,
     Engine,
     ExportError,
     FirefoxBiDi,
@@ -30,7 +30,7 @@ from test_dash.browsers import (
     find_firefox,
     kaleido_installed,
     plotly_js_path,
-    probe_chrome,
+    probe_chromium,
     requested_browser,
     select_renderer,
 )
@@ -153,25 +153,25 @@ def test_find_firefox_locates_local_firefox() -> None:
 # Browser selection
 # --------------------------------------------------------------------------- #
 def test_requested_browser_rejects_a_missing_explicit_path() -> None:
-    with pytest.raises(ChromeUnavailable, match=r"C:\\definitely\\not\\here"):
-        requested_browser(r"C:\definitely\not\here\chrome.exe")
+    with pytest.raises(ChromiumUnavailable, match=r"C:\\definitely\\not\\here"):
+        requested_browser(r"C:\definitely\not\here\chromium.exe")
 
 
 def test_requested_browser_accepts_an_existing_path(tmp_path: Path) -> None:
-    fake = tmp_path / "chrome.exe"
+    fake = tmp_path / "chromium.exe"
     fake.write_bytes(b"fake binary")
     assert requested_browser(fake) == fake
 
 
 def test_requested_browser_is_empty_without_a_choice() -> None:
-    """No --chrome -> Kaleido picks the browser."""
+    """No --chromium -> Kaleido picks the browser."""
     assert requested_browser() is None
 
 
 # --------------------------------------------------------------------------- #
 # Engine selection
 # --------------------------------------------------------------------------- #
-def test_select_renderer_firefox_never_probes_chrome(
+def test_select_renderer_firefox_never_probes_chromium(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
@@ -182,7 +182,7 @@ def test_select_renderer_firefox_never_probes_chrome(
         probes.append(browser)
         return True
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "probe_chromium", _probe)
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
     renderer = browsers_module.select_renderer("firefox")
@@ -192,7 +192,7 @@ def test_select_renderer_firefox_never_probes_chrome(
     assert probes == []
 
 
-def test_select_renderer_auto_uses_chrome_when_the_probe_passes(
+def test_select_renderer_auto_uses_chromium_when_the_probe_passes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No explicit browser: Kaleido picks, and the probe confirms it works."""
@@ -204,12 +204,12 @@ def test_select_renderer_auto_uses_chrome_when_the_probe_passes(
         probes.append(browser)
         return True
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "probe_chromium", _probe)
 
     renderer = browsers_module.select_renderer("auto")
 
-    assert isinstance(renderer, ChromeRenderer)
-    assert renderer.engine == "chrome"
+    assert isinstance(renderer, ChromiumRenderer)
+    assert renderer.engine == "chromium"
     assert renderer.executable is None, "Kaleido's own choice is left unpinned"
     assert probes == [None], "no browser was named, so none may be pinned"
 
@@ -217,7 +217,7 @@ def test_select_renderer_auto_uses_chrome_when_the_probe_passes(
 def test_select_renderer_pins_a_browser_the_user_named(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """--chrome PATH is pinned for the probe, so Kaleido cannot pick another."""
+    """--chromium PATH is pinned for the probe, so Kaleido cannot pick another."""
     import test_dash.browsers as browsers_module
 
     named = tmp_path / "msedge.exe"
@@ -228,21 +228,21 @@ def test_select_renderer_pins_a_browser_the_user_named(
         probes.append(browser)
         return True
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", _probe)
+    monkeypatch.setattr(browsers_module, "probe_chromium", _probe)
 
-    renderer = browsers_module.select_renderer("chrome", chrome=named)
+    renderer = browsers_module.select_renderer("chromium", chromium=named)
 
-    assert isinstance(renderer, ChromeRenderer)
+    assert isinstance(renderer, ChromiumRenderer)
     assert renderer.executable == named
     assert probes == [named], "a named browser must be probed pinned"
 
 
-def test_select_renderer_auto_falls_back_to_firefox_when_chrome_fails(
+def test_select_renderer_auto_falls_back_to_firefox_when_chromium_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
     renderer = browsers_module.select_renderer("auto")
@@ -255,55 +255,55 @@ def test_select_renderer_auto_uses_firefox_without_kaleido(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
-    import test_dash.browsers.chrome as chrome_module
+    import test_dash.browsers.chromium as chromium_module
 
-    monkeypatch.setattr(chrome_module, "kaleido_installed", lambda: False)
+    monkeypatch.setattr(chromium_module, "kaleido_installed", lambda: False)
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
 
-    assert probe_chrome() is False, "a missing Kaleido must never render anything"
+    assert probe_chromium() is False, "a missing Kaleido must never render anything"
     assert isinstance(browsers_module.select_renderer("auto"), FirefoxBiDi)
 
 
-def test_select_renderer_explicit_chrome_fails_loudly(
+def test_select_renderer_explicit_chromium_fails_loudly(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import test_dash.browsers as browsers_module
 
-    named = tmp_path / "chrome.exe"
+    named = tmp_path / "chromium.exe"
     named.write_bytes(b"fake binary")
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
 
-    with pytest.raises(ChromeUnavailable):
-        browsers_module.select_renderer("chrome", chrome=named)
+    with pytest.raises(ChromiumUnavailable):
+        browsers_module.select_renderer("chromium", chromium=named)
 
 
-def test_select_renderer_explicit_chrome_reports_a_missing_browser(
+def test_select_renderer_explicit_chromium_reports_a_missing_browser(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
 
-    with pytest.raises(ChromeUnavailable) as excinfo:
-        browsers_module.select_renderer("chrome")
-    assert "no Chrome" in str(excinfo.value)
+    with pytest.raises(ChromiumUnavailable) as excinfo:
+        browsers_module.select_renderer("chromium")
+    assert "no Chromium" in str(excinfo.value)
 
 
-def test_select_renderer_explicit_chrome_reports_missing_kaleido(
+def test_select_renderer_explicit_chromium_reports_missing_kaleido(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import test_dash.browsers as browsers_module
-    import test_dash.browsers.chrome as chrome_module
+    import test_dash.browsers.chromium as chromium_module
 
-    monkeypatch.setattr(chrome_module, "kaleido_installed", lambda: False)
+    monkeypatch.setattr(chromium_module, "kaleido_installed", lambda: False)
 
-    with pytest.raises(ChromeUnavailable) as excinfo:
-        browsers_module.select_renderer("chrome")
+    with pytest.raises(ChromiumUnavailable) as excinfo:
+        browsers_module.select_renderer("chromium")
     assert "Kaleido" in str(excinfo.value)
 
 
 # --------------------------------------------------------------------------- #
-# Chrome renderer
+# Chromium renderer
 # --------------------------------------------------------------------------- #
 def _capture_to_image(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Replace plotly's static-image call, recording how it was made."""
@@ -319,13 +319,13 @@ def _capture_to_image(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return captured
 
 
-def test_chrome_renderer_writes_the_image_bytes(
+def test_chromium_renderer_writes_the_image_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured = _capture_to_image(monkeypatch)
     destination = tmp_path / "nested" / "figure.png"
 
-    with ChromeRenderer() as renderer:
+    with ChromiumRenderer() as renderer:
         result = renderer.render(
             preset_figures()[0].figure, destination, width=400, height=300, scale=3
         )
@@ -338,13 +338,13 @@ def test_chrome_renderer_writes_the_image_bytes(
     assert captured["scale"] == 3
 
 
-def test_chrome_renderer_omits_scale_for_svg(
+def test_chromium_renderer_omits_scale_for_svg(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured = _capture_to_image(monkeypatch)
     destination = tmp_path / "figure.svg"
 
-    with ChromeRenderer() as renderer:
+    with ChromiumRenderer() as renderer:
         renderer.render(
             preset_figures()[0].figure, destination, image_format="svg", scale=3
         )
@@ -354,37 +354,37 @@ def test_chrome_renderer_omits_scale_for_svg(
     assert destination.is_file()
 
 
-def test_chrome_renderer_pins_and_restores_browser_path(
+def test_chromium_renderer_pins_and_restores_browser_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("BROWSER_PATH", raising=False)
-    chrome = tmp_path / "chrome.exe"
-    chrome.write_bytes(b"fake binary")
+    browser = tmp_path / "chromium.exe"
+    browser.write_bytes(b"fake binary")
 
-    with ChromeRenderer(chrome) as renderer:
-        assert os.environ["BROWSER_PATH"] == str(chrome)
-        assert renderer.executable == chrome
+    with ChromiumRenderer(browser) as renderer:
+        assert os.environ["BROWSER_PATH"] == str(browser)
+        assert renderer.executable == browser
 
     assert "BROWSER_PATH" not in os.environ
 
 
-def test_chrome_renderer_restores_a_preexisting_browser_path(
+def test_chromium_renderer_restores_a_preexisting_browser_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BROWSER_PATH", r"C:\already\set\brave.exe")
 
-    with ChromeRenderer(r"C:\given\chrome.exe"):
-        assert os.environ["BROWSER_PATH"] == r"C:\given\chrome.exe"
+    with ChromiumRenderer(r"C:\given\chromium.exe"):
+        assert os.environ["BROWSER_PATH"] == r"C:\given\chromium.exe"
 
     assert os.environ["BROWSER_PATH"] == r"C:\already\set\brave.exe"
 
 
-def test_chrome_renderer_without_an_explicit_browser_leaves_the_env_alone(
+def test_chromium_renderer_without_an_explicit_browser_leaves_the_env_alone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BROWSER_PATH", r"C:\already\set\brave.exe")
 
-    with ChromeRenderer() as renderer:
+    with ChromiumRenderer() as renderer:
         assert renderer.executable is None
 
     assert os.environ["BROWSER_PATH"] == r"C:\already\set\brave.exe"
@@ -401,7 +401,7 @@ def test_cli_defaults_to_serving_the_app() -> None:
     assert params["image_format"].default == "png"
     assert params["scale"].default == pytest.approx(2.0)
     assert params["engine"].default == "auto"
-    assert params["chrome"].default is None
+    assert params["chromium"].default is None
 
 
 def test_cli_accepts_export_flags(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -426,7 +426,7 @@ def test_cli_accepts_export_flags(monkeypatch: pytest.MonkeyPatch) -> None:
             "--scale", "3",
             "--width", "900",
             "--engine", "firefox",
-            "--chrome", r"C:\browsers\chrome.exe",
+            "--chromium", r"C:\browsers\chromium.exe",
             "-v",
         ],
     )
@@ -438,7 +438,7 @@ def test_cli_accepts_export_flags(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["width"] == 900
     assert captured["height"] is None
     assert captured["engine"] == "firefox"
-    assert captured["chrome"] == r"C:\browsers\chrome.exe"
+    assert captured["chromium"] == r"C:\browsers\chromium.exe"
     assert captured["firefox"] is None
     assert captured["verbose"] is True
 
@@ -498,7 +498,7 @@ def test_standalone_export_module_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["image_format"] == "svg"
     assert captured["scale"] == pytest.approx(2.0)
     assert captured["engine"] == "auto"
-    assert captured["chrome"] is None
+    assert captured["chromium"] is None
     assert captured["firefox"] is None
 
 
@@ -573,10 +573,10 @@ def fake_export(monkeypatch: pytest.MonkeyPatch) -> FakeExport:
         bars.append(bar)
         return bar
 
-    # With no --chrome and a probe that never passes, ``auto`` resolves to the
+    # With no --chromium and a probe that never passes, ``auto`` resolves to the
     # Firefox engine without ever touching Kaleido - so the suite stays hermetic.
     monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
     monkeypatch.setattr(browsers_module, "FirefoxBiDi", _FakeBrowser)
     monkeypatch.setattr(export_module, "tqdm", make_bar)
     return export_module, bars
@@ -641,11 +641,11 @@ def test_export_all_forwards_the_engine_choice(
     def fake_select(
         engine: str,
         *,
-        chrome: str | None = None,
+        chromium: str | None = None,
         firefox: str | None = None,
         log_path: Path | None = None,
     ) -> _FakeBrowser:
-        seen.update(engine=engine, chrome=chrome, firefox=firefox)
+        seen.update(engine=engine, chromium=chromium, firefox=firefox)
         return _FakeBrowser()
 
     def make_bar(iterable: Iterable[object], **kwargs: object) -> _FakeBar:
@@ -657,10 +657,10 @@ def test_export_all_forwards_the_engine_choice(
     monkeypatch.setattr(export_module, "tqdm", make_bar)
 
     written = export_module.export_all(
-        tmp_path / "out", engine="firefox", chrome="chrome.exe", verbose=True
+        tmp_path / "out", engine="firefox", chromium="chromium.exe", verbose=True
     )
 
-    assert seen == {"engine": "firefox", "chrome": "chrome.exe", "firefox": None}
+    assert seen == {"engine": "firefox", "chromium": "chromium.exe", "firefox": None}
     assert len(written) == 9
     assert len(bars) == 1
 
@@ -670,7 +670,7 @@ def test_export_all_forwards_the_engine_choice(
     assert "output:" in out
 
 
-def test_export_all_verbose_reports_the_chrome_engine(
+def test_export_all_verbose_reports_the_chromium_engine(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -679,17 +679,17 @@ def test_export_all_verbose_reports_the_chrome_engine(
     import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
-    # Hedge the whole Chrome path so it is exercised without a real browser.
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: True)
+    # Hedge the whole Chromium path so it is exercised without a real browser.
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: True)
     monkeypatch.setattr(pio, "to_image", lambda figure, **kwargs: b"\x89PNG\r\n\x1a\n")
 
-    written = export_module.export_all(tmp_path / "out", engine="chrome", verbose=True)
+    written = export_module.export_all(tmp_path / "out", engine="chromium", verbose=True)
 
     assert len(written) == 9
     assert all(path.read_bytes()[:4] == b"\x89PNG" for path in written)
 
     out = capsys.readouterr().out
-    assert "engine:   chrome" in out
+    assert "engine:   chromium" in out
     assert "browser:  autodetected" in out
 
 
@@ -699,11 +699,11 @@ def test_export_all_leaves_no_directory_when_the_engine_is_unusable(
     import test_dash.browsers as browsers_module
     import test_dash.export as export_module
 
-    monkeypatch.setattr(browsers_module, "probe_chrome", lambda browser=None: False)
+    monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
 
     output = tmp_path / "out"
-    with pytest.raises(ChromeUnavailable):
-        export_module.export_all(output, engine="chrome")
+    with pytest.raises(ChromiumUnavailable):
+        export_module.export_all(output, engine="chromium")
 
     assert not output.exists(), "a failed export should not create the output dir"
 
@@ -736,11 +736,11 @@ def test_run_export_reports_an_unavailable_engine(
     import test_dash.export as export_module
 
     def boom(*args: object, **kwargs: object) -> list[Path]:
-        raise ChromeUnavailable("no Chromium browser found")
+        raise ChromiumUnavailable("no Chromium browser found")
 
     monkeypatch.setattr(export_module, "export_all", boom)
 
-    assert export_module.run_export("out", engine="chrome") == 1
+    assert export_module.run_export("out", engine="chromium") == 1
     assert "export failed: no Chromium browser found" in capsys.readouterr().err
 
 
@@ -787,15 +787,15 @@ def test_render_png_through_firefox(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(
     os.environ.get("TEST_DASH_BROWSER_EXPORT") != "1",
-    reason="set TEST_DASH_BROWSER_EXPORT=1 to render through Kaleido/Chrome",
+    reason="set TEST_DASH_BROWSER_EXPORT=1 to render through Kaleido/Chromium",
 )
-def test_render_png_through_chrome(tmp_path: Path) -> None:
+def test_render_png_through_chromium(tmp_path: Path) -> None:
     if not kaleido_installed():
-        pytest.skip("kaleido not installed (uv sync --extra chrome)")
+        pytest.skip("kaleido not installed (uv sync --extra chromium)")
 
     preset = preset_figures()[0]
     destination = tmp_path / "figure.png"
-    with ChromeRenderer(requested_browser()) as renderer:
+    with ChromiumRenderer(requested_browser()) as renderer:
         renderer.render(preset.figure, destination, width=400, height=300, scale=1)
 
     data = destination.read_bytes()

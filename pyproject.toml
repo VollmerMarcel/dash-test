@@ -17,9 +17,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Static images through plotly's own backend (Kaleido + an installed Chromium
-# browser).  Optional on purpose: the Firefox route needs nothing extra.
-chrome = ["kaleido>=1"]
+# Static images through plotly's own backend (Kaleido + an installed
+# Chromium-based browser).  Optional on purpose: the Firefox route needs
+# nothing extra.
+chromium = ["kaleido>=1"]
 
 [project.scripts]
 test-dash = "test_dash:main"

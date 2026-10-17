@@ -1596,7 +1596,7 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-chrome = [
+chromium = [
     { name = "kaleido" },
 ]
 
@@ -1614,13 +1614,13 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.5.0" },
     { name = "dash", specifier = ">=4.4.1" },
-    { name = "kaleido", marker = "extra == 'chrome'", specifier = ">=1" },
+    { name = "kaleido", marker = "extra == 'chromium'", specifier = ">=1" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "tqdm", specifier = ">=4.70.1" },
     { name = "websockets", specifier = ">=17.2" },
 ]
-provides-extras = ["chrome"]
+provides-extras = ["chromium"]
 
 [package.metadata.requires-dev]
 dev = [

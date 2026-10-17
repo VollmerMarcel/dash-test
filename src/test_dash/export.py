@@ -3,9 +3,9 @@
 This module owns the gallery (:func:`preset_figures`), the write loop
 (:func:`export_all`) and the command line (:func:`cli`).  The static-image
 renderers live in :mod:`test_dash.browsers`, which knows how to drive either
-plotly's Chrome/Kaleido backend or headless Firefox; ``--engine`` chooses one and
-``auto`` (the default) prefers Chrome, falling back to Firefox when Chrome cannot
-be proven to work.
+plotly's Chromium/Kaleido backend or headless Firefox; ``--engine`` chooses one
+and ``auto`` (the default) prefers Chromium, falling back to Firefox when
+Chromium cannot be proven to work.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def export_all(
     width: int | None = None,
     height: int | None = None,
     engine: Engine = "auto",
-    chrome: StrPath | None = None,
+    chromium: StrPath | None = None,
     firefox: StrPath | None = None,
     presets: Sequence[Preset] | None = None,
     verbose: bool = False,
@@ -119,7 +119,7 @@ def export_all(
     # Resolve the backend first: a missing browser or an unusable engine should
     # not leave an empty output directory behind.
     renderer: Renderer = select_renderer(
-        engine, chrome=chrome, firefox=firefox, log_path=log_path
+        engine, chromium=chromium, firefox=firefox, log_path=log_path
     )
     directory.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -203,13 +203,14 @@ def export_options(func: _DecoratorT) -> _DecoratorT:
             type=click.Choice(list(ENGINES)),
             default="auto",
             show_default=True,
-            help="static-image backend: chrome when available, else firefox",
+            help="static-image backend: chromium when available, else firefox",
         ),
         click.option(
-            "--chrome",
+            "--chromium",
             metavar="PATH",
             default=None,
-            help="path to a Chrome/Chromium/Edge binary (autodetected by default)",
+            help="path to a Chromium-based browser, Chrome/Edge/Brave/... "
+            "(autodetected by default)",
         ),
         click.option(
             "--firefox",
@@ -237,7 +238,7 @@ def run_export(
     width: int | None = None,
     height: int | None = None,
     engine: Engine = "auto",
-    chrome: StrPath | None = None,
+    chromium: StrPath | None = None,
     firefox: StrPath | None = None,
     verbose: bool = False,
     progress: bool = True,
@@ -251,7 +252,7 @@ def run_export(
             width=width,
             height=height,
             engine=engine,
-            chrome=chrome,
+            chromium=chromium,
             firefox=firefox,
             verbose=verbose,
             progress=progress,
@@ -282,7 +283,7 @@ def cli(
     width: int | None,
     height: int | None,
     engine: Engine,
-    chrome: str | None,
+    chromium: str | None,
     firefox: str | None,
     verbose: bool,
 ) -> None:
@@ -302,7 +303,7 @@ def cli(
             width=width,
             height=height,
             engine=engine,
-            chrome=chrome,
+            chromium=chromium,
             firefox=firefox,
             verbose=verbose,
         )

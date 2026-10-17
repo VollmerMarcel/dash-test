@@ -1,7 +1,7 @@
 """Shared types and settings for the static-image browser backends.
 
 The two backends (:mod:`test_dash.browsers.firefox` and
-:mod:`test_dash.browsers.chrome`) are interchangeable behind :class:`Renderer`;
+:mod:`test_dash.browsers.chromium`) are interchangeable behind :class:`Renderer`;
 this module holds what they have in common so neither has to import the other.
 """
 
@@ -23,10 +23,10 @@ DEFAULT_FORMAT = "png"
 DEFAULT_SCALE = 2.0
 
 #: How ``--engine`` selects a static-image backend.
-Engine = Literal["auto", "chrome", "firefox"]
+Engine = Literal["auto", "chromium", "firefox"]
 
 #: Accepted ``--engine`` values, in help order.
-ENGINES: tuple[str, ...] = ("auto", "chrome", "firefox")
+ENGINES: tuple[str, ...] = ("auto", "chromium", "firefox")
 
 #: Anything usable as a filesystem path: a ``str`` or an :class:`os.PathLike`.
 StrPath = str | os.PathLike[str]
@@ -40,8 +40,8 @@ class ExportError(RuntimeError):
     """Raised when a backend failed to render or return an image."""
 
 
-class ChromeUnavailable(ExportError):
-    """Raised when the Chrome/Kaleido backend was requested but cannot be used."""
+class ChromiumUnavailable(ExportError):
+    """Raised when the Chromium/Kaleido backend was requested but cannot be used."""
 
 
 class Renderer(Protocol):

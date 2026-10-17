@@ -78,19 +78,20 @@ making its way through the nine.
 ### Which browser is used
 
 You rarely have to think about this: the default `--engine auto` tries the fast
-Chrome/Kaleido route and quietly falls back to headless Firefox if it cannot
-prove that it works. `--engine chrome` or `--engine firefox` forces one of them.
+Chromium route and quietly falls back to headless Firefox if it cannot prove
+that it works. `--engine chromium` or `--engine firefox` forces one of them.
 
+- **Chromium** — plotly's standard rendering path. It works with *any*
+  Chromium-based browser — Chrome, Edge, Brave, Chromium itself — and needs the
+  optional `kaleido` package, which a development checkout already includes;
+  otherwise add it with `uv sync --extra chromium`.
 - **Firefox** — needs nothing but the Firefox you already have. It runs entirely
   in the background: no window, no downloads, no extra driver to install.
-- **Chrome** — plotly's standard rendering path. It needs the optional `kaleido`
-  package, which a development checkout already includes; otherwise add it with
-  `uv sync --extra chrome`.
 - If the wrong browser is picked, name the right one yourself with
-  `--chrome PATH` or `--firefox PATH`.
+  `--chromium PATH` or `--firefox PATH`.
 
 Only a browser that is already installed is ever used, and it is accepted only
-after a quick test render succeeds. If you ask for `--engine chrome` and it is
+after a quick test render succeeds. If you ask for `--engine chromium` and it is
 not usable, you get a clear error rather than a silent fallback.
 
 ## Tests
@@ -101,5 +102,5 @@ uv run mypy                           # type checking
 TEST_DASH_BROWSER_EXPORT=1 uv run pytest -k "render or clear_of"   # real rendering
 ```
 
-The last one actually renders through Firefox and Chrome; without that variable
-it is skipped, so the normal test run stays quick and works everywhere.
+The last one actually renders through Firefox and Chromium; without that
+variable it is skipped, so the normal test run stays quick and works everywhere.
