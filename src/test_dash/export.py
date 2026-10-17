@@ -216,7 +216,7 @@ def export_options(func: _DecoratorT) -> _DecoratorT:
             "--firefox",
             metavar="PATH",
             default=None,
-            help="path to firefox.exe (autodetected by default)",
+            help="path to the Firefox binary (autodetected by default)",
         ),
         click.option(
             "-v",

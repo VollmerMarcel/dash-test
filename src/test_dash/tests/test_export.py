@@ -135,9 +135,49 @@ def test_decode_data_url_rejects_garbage() -> None:
 # --------------------------------------------------------------------------- #
 # Firefox discovery
 # --------------------------------------------------------------------------- #
-def test_find_firefox_rejects_missing_explicit_path() -> None:
+def test_find_firefox_rejects_missing_explicit_path(tmp_path: Path) -> None:
     with pytest.raises(FirefoxUnavailable):
-        find_firefox(r"C:\definitely\not\here\firefox.exe")
+        find_firefox(tmp_path / "no" / "such" / "firefox")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the install locations are Windows-only")
+def test_find_firefox_uses_the_windows_locations_on_windows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Windows is the one platform where Firefox may sit outside the PATH."""
+    import test_dash.browsers.firefox as firefox_module
+
+    binary = tmp_path / "Mozilla Firefox" / "firefox.exe"
+    binary.parent.mkdir(parents=True)
+    binary.write_bytes(b"fake binary")
+
+    monkeypatch.setattr(firefox_module.shutil, "which", lambda name: None)
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "no" / "such" / "localappdata"))
+
+    assert find_firefox() == binary
+
+
+def test_find_firefox_ignores_the_windows_locations_elsewhere(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """On Linux and macOS Firefox is expected on the PATH, not in Program Files."""
+    import test_dash.browsers.firefox as firefox_module
+
+    binary = tmp_path / "Mozilla Firefox" / "firefox"
+    binary.parent.mkdir(parents=True)
+    binary.write_bytes(b"fake binary")
+
+    def _windows_only() -> list[Path]:
+        raise AssertionError("the Windows locations are only searched on Windows")
+
+    monkeypatch.setattr(firefox_module.shutil, "which", lambda name: None)
+    monkeypatch.setattr(firefox_module, "_windows_install_locations", _windows_only)
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    monkeypatch.setattr(firefox_module.os, "name", "posix")
+
+    with pytest.raises(FirefoxUnavailable):
+        find_firefox()
 
 
 def test_find_firefox_locates_local_firefox() -> None:
@@ -183,7 +223,7 @@ def test_select_renderer_firefox_never_probes_chromium(
         return True
 
     monkeypatch.setattr(browsers_module, "probe_chromium", _probe)
-    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox"))
 
     renderer = browsers_module.select_renderer("firefox")
 
@@ -243,7 +283,7 @@ def test_select_renderer_auto_falls_back_to_firefox_when_chromium_fails(
     import test_dash.browsers as browsers_module
 
     monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
-    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox"))
 
     renderer = browsers_module.select_renderer("auto")
 
@@ -258,7 +298,7 @@ def test_select_renderer_auto_uses_firefox_without_kaleido(
     import test_dash.browsers.chromium as chromium_module
 
     monkeypatch.setattr(chromium_module, "kaleido_installed", lambda: False)
-    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox"))
 
     assert probe_chromium() is False, "a missing Kaleido must never render anything"
     assert isinstance(browsers_module.select_renderer("auto"), FirefoxBiDi)
@@ -513,7 +553,7 @@ class _FakeBrowser:
     def __init__(self, *args: object, **kwargs: object) -> None:
         # FirefoxBiDi is handed the executable positionally; mirror it so the
         # verbose configuration report has something to print.
-        self.firefox = Path(str(args[0])) if args else Path("firefox.exe")
+        self.firefox = Path(str(args[0])) if args else Path("firefox")
 
     @property
     def executable(self) -> Path:
@@ -575,7 +615,7 @@ def fake_export(monkeypatch: pytest.MonkeyPatch) -> FakeExport:
 
     # With no --chromium and a probe that never passes, ``auto`` resolves to the
     # Firefox engine without ever touching Kaleido - so the suite stays hermetic.
-    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox.exe"))
+    monkeypatch.setattr(browsers_module, "find_firefox", lambda explicit=None: Path("firefox"))
     monkeypatch.setattr(browsers_module, "probe_chromium", lambda browser=None: False)
     monkeypatch.setattr(browsers_module, "FirefoxBiDi", _FakeBrowser)
     monkeypatch.setattr(export_module, "tqdm", make_bar)
@@ -666,7 +706,7 @@ def test_export_all_forwards_the_engine_choice(
 
     out = capsys.readouterr().out
     assert "engine:   firefox" in out
-    assert "browser:  firefox.exe" in out
+    assert "browser:  firefox" in out
     assert "output:" in out
 
 
