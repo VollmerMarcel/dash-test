@@ -5,8 +5,8 @@ example figure to PNG or SVG without installing anything extra::
 
     uv run test-dash --export-figures ./export
 
-By default that prefers plotly's Chrome/Kaleido backend when it is available and
-falls back to headless Firefox otherwise; ``--engine`` forces either one.
+By default that prefers plotly's Chromium/Kaleido backend when it is available
+and falls back to headless Firefox otherwise; ``--engine`` forces either one.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def build_cli() -> click.Command:
         width: int | None,
         height: int | None,
         engine: Engine,
-        chrome: str | None,
+        chromium: str | None,
         firefox: str | None,
         verbose: bool,
     ) -> None:
@@ -75,7 +75,7 @@ def build_cli() -> click.Command:
                     width=width,
                     height=height,
                     engine=engine,
-                    chrome=chrome,
+                    chromium=chromium,
                     firefox=firefox,
                     verbose=verbose,
                 )

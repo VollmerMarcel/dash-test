@@ -273,7 +273,8 @@ class FirefoxBiDi:
     """Headless Firefox driven through its built-in WebDriver BiDi socket.
 
     Used as a context manager; the browser process and its throwaway profile are
-    cleaned up on exit.  No geckodriver and no Chrome are involved.
+    cleaned up on exit.  No geckodriver and no Chromium-based browser are
+    involved.
     """
 
     engine: Engine = "firefox"

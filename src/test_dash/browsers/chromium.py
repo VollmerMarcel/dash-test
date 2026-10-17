@@ -1,9 +1,10 @@
-"""The Chrome/Kaleido static-image backend.
+"""The Chromium/Kaleido static-image backend.
 
 Uses plotly's own static-image path (:func:`plotly.io.to_image`), which needs the
-optional ``kaleido`` package *and* an installed Chromium-family browser.  Nothing
-is ever downloaded: the browser must already be on the machine and ``kaleido``
-must already be installed (``uv sync --extra chrome``).
+optional ``kaleido`` package *and* an installed Chromium-based browser (Chrome,
+Edge, Brave or any other build of Chromium).  Nothing is ever downloaded: the
+browser must already be on the machine and ``kaleido`` must already be installed
+(``uv sync --extra chromium``).
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from .base import (
     DEFAULT_HEIGHT,
     DEFAULT_SCALE,
     DEFAULT_WIDTH,
-    ChromeUnavailable,
+    ChromiumUnavailable,
     Engine,
     StrPath,
 )
@@ -30,11 +31,12 @@ if TYPE_CHECKING:
 
 
 def requested_browser(explicit: StrPath | None = None) -> Path | None:
-    """The browser ``--chrome PATH`` names, else ``None``.
+    """The browser ``--chromium PATH`` names, else ``None``.
 
     A path that does not exist is a loud error rather than a silent fall back to
     autodetection.  ``None`` means "no preference": Kaleido's own browser layer
-    then picks the browser exactly as it would without us.
+    then picks any Chromium-based browser it can find, exactly as it would
+    without us.
 
     Nothing is ever downloaded here - ``plotly.io.get_chrome()`` and
     ``kaleido.get_chrome_sync()`` are never called, so the browser must already
@@ -45,7 +47,7 @@ def requested_browser(explicit: StrPath | None = None) -> Path | None:
     candidate = Path(explicit)
     if candidate.is_file():
         return candidate
-    raise ChromeUnavailable(f"--chrome points at a missing file: {candidate}")
+    raise ChromiumUnavailable(f"--chromium points at a missing file: {candidate}")
 
 
 def kaleido_installed() -> bool:
@@ -60,8 +62,8 @@ def kaleido_installed() -> bool:
     return major.isdigit() and int(major) >= 1
 
 
-def probe_chrome(browser: StrPath | None = None) -> bool:
-    """Render a 100x100 test figure through the Chrome/Kaleido backend.
+def probe_chromium(browser: StrPath | None = None) -> bool:
+    """Render a 100x100 test figure through the Chromium/Kaleido backend.
 
     ``browser`` pins the executable for the probe via ``BROWSER_PATH`` - the
     variable the underlying ``choreographer`` package consults when looking for
@@ -91,23 +93,23 @@ def probe_chrome(browser: StrPath | None = None) -> bool:
     return True
 
 
-def chrome_failure_hint(browser: Path | None) -> str:
-    """Explain why an explicitly requested Chrome engine is unusable."""
+def chromium_failure_hint(browser: Path | None) -> str:
+    """Explain why an explicitly requested Chromium engine is unusable."""
     if not kaleido_installed():
         return (
-            "the Chrome engine needs the optional Kaleido backend; install it with "
-            "'uv sync --extra chrome' (or 'uv add kaleido')"
+            "the Chromium engine needs the optional Kaleido backend; install it with "
+            "'uv sync --extra chromium' (or 'uv add kaleido')"
         )
     if browser is None:
         return (
-            "no Chrome/Chromium browser Kaleido could drive; install one, run "
-            "plotly.io.get_chrome(), or pass --chrome PATH"
+            "no Chromium-based browser Kaleido could drive (Chrome, Edge, Brave, ...); "
+            "install one, run plotly.io.get_chrome(), or pass --chromium PATH"
         )
-    return f"Kaleido could not render with {browser}; pass --chrome PATH to override"
+    return f"Kaleido could not render with {browser}; pass --chromium PATH to override"
 
 
-class ChromeRenderer:
-    """Static images through plotly's Kaleido + Chromium backend.
+class ChromiumRenderer:
+    """Static images through plotly's Kaleido + any Chromium-based browser.
 
     Used as a context manager so an explicitly chosen browser can be pinned via
     ``BROWSER_PATH`` for the duration of the export and then restored.  Unlike
@@ -115,13 +117,13 @@ class ChromeRenderer:
     profile to manage: Kaleido starts and stops its own browser for every image.
     """
 
-    engine: Engine = "chrome"
+    engine: Engine = "chromium"
 
     def __init__(self, browser: StrPath | None = None) -> None:
         self.executable: Path | None = Path(browser) if browser is not None else None
         self._previous_browser_path: str | None = None
 
-    def __enter__(self) -> ChromeRenderer:
+    def __enter__(self) -> ChromiumRenderer:
         if self.executable is not None:
             self._previous_browser_path = os.environ.get("BROWSER_PATH")
             os.environ["BROWSER_PATH"] = str(self.executable)
