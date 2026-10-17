@@ -99,8 +99,11 @@ not usable, you get a clear error rather than a silent fallback.
 ```bash
 uv run pytest                         # fast, needs no browser
 uv run mypy                           # type checking
-TEST_DASH_BROWSER_EXPORT=1 uv run pytest -k "render or clear_of"   # real rendering
+TEST_DASH_BROWSER_EXPORT=1 uv run pytest -m browser   # real rendering
 ```
 
 The last one actually renders through Firefox and Chromium; without that
 variable it is skipped, so the normal test run stays quick and works everywhere.
+Each test module mirrors the source module it covers — `test_firefox.py` for
+`browsers/firefox.py`, `test_export.py` for `export.py`, and so on — with the
+shared fixtures in `tests/conftest.py`.
