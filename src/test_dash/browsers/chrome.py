@@ -30,28 +30,22 @@ if TYPE_CHECKING:
 
 
 def requested_browser(explicit: StrPath | None = None) -> Path | None:
-    """The browser the user explicitly asked for, else ``None``.
+    """The browser ``--chrome PATH`` names, else ``None``.
 
-    ``--chrome PATH`` wins, then ``TEST_DASH_CHROME``.  Both must point at a real
-    file, so a typo is a loud error rather than a silent fall back to
-    autodetection.  Returning ``None`` means "no preference": Kaleido's own
-    browser layer then picks the browser exactly as it would without us.
+    A path that does not exist is a loud error rather than a silent fall back to
+    autodetection.  ``None`` means "no preference": Kaleido's own browser layer
+    then picks the browser exactly as it would without us.
 
     Nothing is ever downloaded here - ``plotly.io.get_chrome()`` and
     ``kaleido.get_chrome_sync()`` are never called, so the browser must already
     be on the machine (including one the user fetched themselves).
     """
-    for option, value in (
-        ("--chrome", explicit),
-        ("TEST_DASH_CHROME", os.environ.get("TEST_DASH_CHROME")),
-    ):
-        if not value:
-            continue
-        candidate = Path(value)
-        if candidate.is_file():
-            return candidate
-        raise ChromeUnavailable(f"{option} points at a missing file: {candidate}")
-    return None
+    if explicit is None:
+        return None
+    candidate = Path(explicit)
+    if candidate.is_file():
+        return candidate
+    raise ChromeUnavailable(f"--chrome points at a missing file: {candidate}")
 
 
 def kaleido_installed() -> bool:
